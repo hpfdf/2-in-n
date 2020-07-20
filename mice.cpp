@@ -42,7 +42,7 @@ class Teller {
   vector<bool> ask(const vector<Set>& q) {
     assert(!answered);  // Cannot ask after submit_answer.
     rounds += 1;
-    quests += q.size();
+    exams += q.size();
     vector<bool> response;
     response.reserve(q.size());
     for (const auto& p : q) {
@@ -51,10 +51,9 @@ class Teller {
       response.push_back(has);
     }
     if (verbose) {
-      cout << "    Round " << rounds << ": asked (size = " << q.size()
-           << "):\n";
+      cout << "  Round " << rounds << ": asked (size = " << q.size() << "):\n";
       for (const auto& p : q) cout << "    " << p << endl;
-      cout << "      Responded " << response << ".\n";
+      cout << "    result = " << response << ".\n";
     }
     return response;
   }
@@ -64,21 +63,20 @@ class Teller {
     answered = true;
     bool correct = (ans == truth);
     if (verbose) {
+      cout << "  Used " << rounds << " round(s) and " << exams << " exam(s).\n";
       cout << "  " << (correct ? "Correct" : "Wrong") << " answer " << ans
            << ".\n";
-      cout << "  Used " << rounds << " round(s) and " << quests
-           << " quest(s).\n";
     }
     return correct;
   }
 
   bool is_answered() { return answered; }
   int get_rounds() { return rounds; }
-  int get_quests() { return quests; }
+  int get_exams() { return exams; }
 
  private:
   vector<int> truth;
-  int rounds = 0, quests = 0;
+  int rounds = 0, exams = 0;
   bool answered = false, verbose;
 };
 
@@ -93,8 +91,8 @@ class Strategy {
   // Maximum number of rounds needed in the worst case with n.
   virtual int worst_rounds(int n) const = 0;
 
-  // Maximum number of quests needed in the worst case with n.
-  virtual int worst_quests(int n) const = 0;
+  // Maximum number of exams needed in the worst case with n.
+  virtual int worst_exams(int n) const = 0;
 
   // Executes the strategy with n and the teller agent.
   virtual bool run(int n, Teller* teller) const = 0;
@@ -132,7 +130,7 @@ class OneRoundStrategy : public Strategy {
 
  public:
   int worst_rounds(int n) const final { return 1; };
-  int worst_quests(int n) const final { return get_query(n).size(); };
+  int worst_exams(int n) const final { return get_query(n).size(); };
 
   const vector<Set>& get_query(int n) const {
     if (!q_cache.count(n)) q_cache[n] = make_query(n);
@@ -160,18 +158,18 @@ class OneRoundStrategy : public Strategy {
   mutable unordered_map<int, vector<Set>> q_cache;
 };
 
-inline void print_passed_info(int n, int max_rounds, int max_quests,
+inline void print_passed_info(int n, int max_rounds, int max_exams,
                               const Strategy& strategy) {
   cout << "  Passed! worst rounds = " << max_rounds
-       << ", worst quests = " << max_quests << ".\n";
+       << ", worst exams = " << max_exams << ".\n";
   if (max_rounds != strategy.worst_rounds(n))
     cout << "    strategy.worst_rounds(" << n
          << ") = " << strategy.worst_rounds(n)
          << ", but actual worst rounds = " << max_rounds << ".\n";
-  if (max_quests != strategy.worst_quests(n))
-    cout << "    strategy.worst_quests(" << n
-         << ") = " << strategy.worst_quests(n)
-         << ", but actual worst quests = " << max_quests << ".\n";
+  if (max_exams != strategy.worst_exams(n))
+    cout << "    strategy.worst_exams(" << n
+         << ") = " << strategy.worst_exams(n)
+         << ", but actual worst exams = " << max_exams << ".\n";
 }
 
 inline void log_progress(int64_t x, int64_t y, int64_t n) {
@@ -188,20 +186,20 @@ bool brute_force_verify(int n, const Strategy& strategy) {
     cout << "  Failed! N not supported.\n";
     return false;
   }
-  int max_rounds = 0, max_quests = 0;
+  int max_rounds = 0, max_exams = 0;
   auto verify_case = [&](const vector<int>& truth) {
     Teller teller(truth);
     if (!strategy.run(n, &teller) || !teller.is_answered()) {
-      cout << "  Failed!          \n";
+      cout << "  Failed!  \n";
       Teller verbose_teller(truth, true);
       strategy.run(n, &verbose_teller);
       if (!verbose_teller.is_answered())
         cout << "  Strategy did not submit an answer.\n";
-      cout << "  But truth = " << truth << ".\n";
+      cout << "  truth = " << truth << ".\n";
       return false;
     }
     max_rounds = max(max_rounds, teller.get_rounds());
-    max_quests = max(max_quests, teller.get_quests());
+    max_exams = max(max_exams, teller.get_exams());
     return true;
   };
 
@@ -213,7 +211,7 @@ bool brute_force_verify(int n, const Strategy& strategy) {
       log_progress(x, y, n);
     }
   }
-  print_passed_info(n, max_rounds, max_quests, strategy);
+  print_passed_info(n, max_rounds, max_exams, strategy);
   return true;
 }
 
@@ -224,7 +222,7 @@ bool disjoint_verify(int n, const OneRoundStrategy& strategy) {
     return false;
   }
   unordered_map<vector<bool>, vector<int>> m;
-  int max_rounds = 1, max_quests = strategy.worst_quests(n);
+  int max_rounds = 1, max_exams = strategy.worst_exams(n);
   m[strategy.try_answer(n, {})] = {};
   auto verify_case = [&](const vector<int>& truth) {
     auto r = strategy.try_answer(n, truth);
@@ -243,7 +241,7 @@ bool disjoint_verify(int n, const OneRoundStrategy& strategy) {
       log_progress(x, y, n);
     }
   }
-  print_passed_info(n, max_rounds, max_quests, strategy);
+  print_passed_info(n, max_rounds, max_exams, strategy);
   return true;
 }
 
@@ -252,7 +250,7 @@ bool disjoint_verify(int n, const OneRoundStrategy& strategy) {
 //====================
 
 // credit: Pufan He
-// log_2(N) rounds, 2*log_2(N) quests
+// log_2(N) rounds, 2*log_2(N) exams
 class InteractiveStrategy : public Strategy {
  public:
   string name() const override { return "InteractiveStrategy"; }
@@ -262,7 +260,7 @@ class InteractiveStrategy : public Strategy {
     while (i < n) i *= 2, ++r;
     return r;
   }
-  int worst_quests(int n) const override { return worst_rounds(n) * 2; }
+  int worst_exams(int n) const override { return worst_rounds(n) * 2; }
 
   bool run(int n, Teller* teller) const override {
     if (!n) return teller->submit_answer({});
@@ -301,13 +299,128 @@ class InteractiveStrategy : public Strategy {
 };
 
 // credit: Pufan He
-// 2 rounds, <3*log_2(N) quests
+// <=2log_2(N) rounds and exams
+// slightly better than InteractiveStrategy in some Ns.
+class BetterInteractiveStrategy : public Strategy {
+ public:
+  string name() const override { return "BetterInteractiveStrategy"; }
+  bool support(int n) const override {
+    prepare(n);
+    return n >= 0;
+  }
+  int worst_rounds(int n) const override {
+    prepare(n);
+    return f012[n];
+  }
+  int worst_exams(int n) const override { return worst_rounds(n); }
+
+  bool run(int n, Teller* teller) const override {
+    prepare(n);
+    int l = 0, xr = n, yl = 0, r = n;
+    bool y_must_exist = false;
+    if (!w012[r - l]) {
+      auto c = teller->ask({range(l, r)})[0];
+      if (!c) return teller->submit_answer({});
+    }
+
+    for (;;) {
+      int k = w12[r - l][xr - l];
+      if (!k) {
+        if (xr == l + 1) yl = xr;
+        break;
+      }
+      if (k < xr - l) {
+        auto c = teller->ask({range(l, l + k)})[0];
+        if (c)
+          xr = l + k;
+        else
+          yl = l += k;
+      } else {
+        auto c = teller->ask({range(l + k, r)})[0];
+        if (c) {
+          yl = l + k;
+          y_must_exist = true;
+          break;
+        }
+        r = l + k;
+      }
+    }
+    if (l >= xr || l >= r || (l + 1 == r && !teller->ask({range(l, r)})[0]))
+      return teller->submit_answer({});
+    int x = binsearch(l, xr, true, teller),
+        y = binsearch(yl, r, y_must_exist, teller);
+    if (x < 0 && y < 0) return teller->submit_answer({});
+    if (x >= 0 && y >= 0) return teller->submit_answer({x, y});
+    return teller->submit_answer({x >= 0 ? x : y});
+  }
+
+ private:
+  static Set range(int l, int r) {
+    Set s = 0;
+    for (int i = l; i < r; ++i) s[i] = true;
+    return s;
+  }
+
+  int binsearch(int l, int r, bool must_exist, Teller* teller) const {
+    while (l + 1 < r) {
+      int m = (l + r + 1) / 2;
+      if (teller->ask({range(l, m)})[0])
+        r = m, must_exist = true;
+      else
+        l = m;
+    }
+    if (l >= r) return -1;
+    if (must_exist) return l;
+    return teller->ask({range(l, r)})[0] ? l : -1;
+  }
+
+  void prepare(int n) const {
+    int done = f012.size() - 1;
+    if (done >= n) return;
+    for (int i = done + 1; i <= n; ++i) {
+      f01.push_back(f01[i / 2] + 1);
+      f1.push_back(f01[i - 1]);
+      vector<int> f(i + 1, 0), g(i + 1, 0);
+      f[0] = f01[i];
+      f[1] = f01[i - 1];
+      for (int j = 2; j <= i; ++j) {
+        f[j] = i + 1;
+        for (int k = 1; k < i; ++k) {
+          int c0 = k < j ? f12[i - k][j - k] : f12[k][j];
+          int c1 = k < j ? f[k] : f1[i - k] + f1[j];
+          if (1 + max(c0, c1) < f[j]) {
+            f[j] = 1 + max(c0, c1);
+            g[j] = k;
+          }
+        }
+      }
+      f12.emplace_back(move(f));
+      w12.emplace_back(move(g));
+      f012.push_back(1 + f12[i][i]);
+      w012.push_back(0);
+      for (int k = 1; k < i; ++k) {
+        int c0 = f012[i - k];
+        int c1 = f12[i][k];
+        if (1 + max(c0, c1) < f012[i]) {
+          f012[i] = 1 + max(c0, c1);
+          w012[i] = k;
+        }
+      }
+    }
+  }
+
+  mutable vector<int> f01 = {0}, f1 = {0}, f012 = {0}, w012 = {0};
+  mutable vector<vector<int>> f12 = {{0}}, w12 = {{0}};
+};
+
+// credit: Pufan He
+// 2 rounds, <3*log_2(N) exams
 class TwoRoundStrategy : public Strategy {
  public:
   string name() const override { return "TwoRoundStrategy"; }
   bool support(int n) const override { return n >= 0; }
   int worst_rounds(int n) const override { return 2; }
-  int worst_quests(int n) const override {
+  int worst_exams(int n) const override {
     int l = 0;
     while ((1 << l) < n) ++l;
     int p = find_pivot(n);
@@ -398,7 +511,7 @@ class TwoRoundStrategy : public Strategy {
 };
 
 // credit: Zhengjie Miao
-// 1 round, O(log^2 N) quests
+// 1 round, O(log^2 N) exams
 class DigitChecksumOneRoundStrategy : public OneRoundStrategy {
  public:
   DigitChecksumOneRoundStrategy(int base, int len) : base(base), len(len) {}
@@ -479,7 +592,7 @@ class DigitChecksumOneRoundStrategy : public OneRoundStrategy {
 };
 
 // credit: Changji Xu
-// 1 round, O(logN) quests
+// 1 round, O(logN) exams
 class RandomOneRoundStrategy : public OneRoundStrategy {
  public:
   RandomOneRoundStrategy(int max_n, int threshold, int max_q, int64_t rand_seed)
@@ -501,8 +614,8 @@ class RandomOneRoundStrategy : public OneRoundStrategy {
     auto gen = mt19937_64(rand_seed);
     auto rnd = uniform_int_distribution<int>(0, max_n - 1);
     for (auto& p : q) {
-      for (int i = 0; i < n; ++i)
-        if (rnd(gen) < threshold) p[i] = true;
+      for (int i = 0; i < max_n; ++i)
+        if (rnd(gen) < threshold && i < n) p[i] = true;
     }
     return q;
   }
@@ -526,30 +639,35 @@ int main() {
     auto s = InteractiveStrategy();
     assert(brute_force_verify(1000, s));
   }
+  if (1) {
+    auto s = BetterInteractiveStrategy();
+    assert(brute_force_verify(1000, s));
+    assert(brute_force_verify(860, s));
+  }
 
   if (1) {
     auto s = TwoRoundStrategy();
     assert(brute_force_verify(1000, s));
   }
 
-  int best_quests = 51;
-  int64_t best_seed = 7397, tested_max_seed = 13000;
+  int best_exams = 51;
+  int64_t best_seed = 7397, tested_max_seed = 32767;
   if (1) {
-    auto s = RandomOneRoundStrategy(1000, 333, best_quests, best_seed);
+    auto s = RandomOneRoundStrategy(1000, 333, best_exams, best_seed);
     assert(disjoint_verify(1000, s));
   }
 
   if (1) {
     // look for the next better rand seed
     for (auto seed = tested_max_seed + 1;;) {
-      auto s = RandomOneRoundStrategy(1000, 333, best_quests - 1, seed);
+      auto s = RandomOneRoundStrategy(1000, 333, best_exams - 1, seed);
       bool success = disjoint_verify(1000, s);
       if (success) {
-        --best_quests, best_seed = seed;
+        --best_exams, best_seed = seed;
       } else {
         ++seed;
       }
-      cout << "  Best seed = " << best_seed << ", quests = " << best_quests
+      cout << "  Best seed = " << best_seed << ", exams = " << best_exams
            << ".\n";
     }
   }
