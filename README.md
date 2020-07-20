@@ -2,7 +2,7 @@
 
 Given N bottles of samples, up to 2 of them are poisoned.
 
-You can use mice to exam any subsets of samples.  For each exam it will tell whether the subset contains a poisoned sample.
+You can use mice to exam any subsets of samples.  For each exam it will tell whether or not the subset contains poisoned sample.
 
 Design a strategy that minimize the number of exams in the worst case.  Also consider strategies when interaction is limited.
 
