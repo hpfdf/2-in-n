@@ -11,14 +11,14 @@ Design a strategy that minimize the number of exams in the worst case.  Also con
 ### Interactive
 ```
 N = 1000
-Exams = 20    <= 2*\log_2(N)
-Theoretical Bound: 19   \log_2(N*(N+1)/2+1)
+Exams = 20    <= 2*log_2(N)
+Theoretical Bound: 19     log_2(N*(N+1)/2+1)
 ```
 
 ### 2-Round
 ```
 N = 1000
-Exams = 27   < 3*\log_2(N)
+Exams = 27   < 3*log_2(N)
 ```
 
 ### 1-Round
