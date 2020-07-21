@@ -158,6 +158,28 @@ class OneRoundStrategy : public Strategy {
   mutable unordered_map<int, vector<Set>> q_cache;
 };
 
+class FixedOneRoundStrategy final : public OneRoundStrategy {
+ public:
+  FixedOneRoundStrategy(int n, const vector<vector<int>> query) : n(n) {
+    for (auto& p : query) {
+      Set s = 0;
+      for (int i : p) s[i] = true;
+      q.push_back(s);
+    }
+  }
+
+  string name() const final {
+    return "FixedOneRoundStrategy(" + to_string(n) + ")";
+  }
+  bool support(int n) const final { return n == this->n; }
+
+ private:
+  vector<Set> make_query(int) const final { return q; }
+
+  int n;
+  vector<Set> q;
+};
+
 inline void print_passed_info(int n, int max_rounds, int max_exams,
                               const Strategy& strategy) {
   cout << "  Passed! worst rounds = " << max_rounds
@@ -613,10 +635,9 @@ class RandomOneRoundStrategy : public OneRoundStrategy {
     vector<Set> q(max_q);
     auto gen = mt19937_64(rand_seed);
     auto rnd = uniform_int_distribution<int>(0, max_n - 1);
-    for (auto& p : q) {
+    for (auto& p : q)
       for (int i = 0; i < max_n; ++i)
         if (rnd(gen) < threshold && i < n) p[i] = true;
-    }
     return q;
   }
 
@@ -650,8 +671,8 @@ int main() {
     assert(brute_force_verify(1000, s));
   }
 
-  int best_exams = 51;
-  int64_t best_seed = 7397, tested_max_seed = 32767;
+  int best_exams = 50;
+  int64_t best_seed = 42337, tested_max_seed = 1189177;
   if (1) {
     auto s = RandomOneRoundStrategy(1000, 333, best_exams, best_seed);
     assert(disjoint_verify(1000, s));
@@ -661,14 +682,12 @@ int main() {
     // look for the next better rand seed
     for (auto seed = tested_max_seed + 1;;) {
       auto s = RandomOneRoundStrategy(1000, 333, best_exams - 1, seed);
-      bool success = disjoint_verify(1000, s);
-      if (success) {
+      if (disjoint_verify(1000, s))
         --best_exams, best_seed = seed;
-      } else {
+      else
         ++seed;
-      }
-      cout << "  Best seed = " << best_seed << ", exams = " << best_exams
-           << ".\n";
+      cout << "  Current best seed = " << best_seed
+           << ", exams = " << best_exams << ".\n";
     }
   }
 
