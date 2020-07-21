@@ -24,5 +24,5 @@ Exams = 27   < 3*\log_2(N)
 ### 1-Round
 ```
 N = 1000
-Exams = 51   O(log(N))
+Exams = 50   O(log(N))
 ```
