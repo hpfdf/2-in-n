@@ -18,11 +18,11 @@ Theoretical Bound: 19     log_2(N*(N+1)/2+1)
 ### 2-Round
 ```
 N = 1000
-Exams = 27   < 3*log_2(N)
+Exams = 26   < 3*log_2(N)
 ```
 
 ### 1-Round
 ```
 N = 1000
-Exams = 50   O(log(N))
+Exams = 48   O(log(N)) or log_2(N)^log_2(3)
 ```
