@@ -24,7 +24,7 @@ inline ostream& operator<<(ostream& o, const vector<T>& a) {
   return o << "}";
 }
 
-inline ostream& operator<<(ostream& o, const bitset<N>& a) {
+inline ostream& operator<<(ostream& o, const Set& a) {
   bool first = true;
   for (int i = 0; i < N; ++i)
     if (a[i]) o << (first ? (first = false, "{") : ", ") << i;
@@ -51,9 +51,10 @@ class Teller {
       response.push_back(has);
     }
     if (verbose) {
-      cout << "  Round " << rounds << ": asked (size = " << q.size() << "):\n";
+      cout << "  Round " << rounds << ": asked (size = " << q.size()
+           << "):" << endl;
       for (const auto& p : q) cout << "    " << p << endl;
-      cout << "    result = " << response << ".\n";
+      cout << "    result = " << response << "." << endl;
     }
     return response;
   }
@@ -105,7 +106,7 @@ class OneRoundStrategy : public Strategy {
 
  public:
   int worst_rounds(int n) const final { return 1; };
-  int worst_exams(int n) const final { return get_query(n).size(); };
+  int worst_exams(int n) const override { return get_query(n).size(); };
 
   // The default run method using naive enumeration.
   // Subclass may override to provide a faster solution.
@@ -256,11 +257,18 @@ bool disjoint_verify(int n, const OneRoundStrategy& strategy,
 // 1 round, n exams
 class NaiveOneRoundStrategy final : public OneRoundStrategy {
  public:
-  string name() const final { return "NaiveOneRoundStrategy"; }
-  bool support(int n) const final { return n >= 0; }
+  string name() const override { return "NaiveOneRoundStrategy"; }
+  bool support(int n) const override { return n >= 0; }
+  int worst_exams(int n) const override { return n; }
+  vector<int> run(int n, const vector<bool>& response) const override {
+    vector<int> answer;
+    for (int i = 0; i < n; ++i)
+      if (response[i]) answer.push_back(i);
+    return answer;
+  }
 
  private:
-  vector<Set> make_query(int n) const final {
+  vector<Set> make_query(int n) const override {
     vector<Set> q(n);
     for (int i = 0; i < n; ++i) q[i][i] = true;
     return q;
@@ -269,7 +277,7 @@ class NaiveOneRoundStrategy final : public OneRoundStrategy {
 
 // credit: Zhengjie Miao
 // 1 round, O(log^2 N) exams
-class DigitChecksumOneRoundStrategy : public OneRoundStrategy {
+class DigitChecksumOneRoundStrategy final : public OneRoundStrategy {
  public:
   DigitChecksumOneRoundStrategy(int base, int len) : base(base), len(len) {}
   string name() const override {
@@ -350,7 +358,7 @@ class DigitChecksumOneRoundStrategy : public OneRoundStrategy {
 
 // credit: Changji Xu
 // 1 round, O(logN) exams
-class RandomOneRoundStrategy : public OneRoundStrategy {
+class RandomOneRoundStrategy final : public OneRoundStrategy {
  public:
   RandomOneRoundStrategy(int max_n, int threshold, int max_q, int64_t rand_seed)
       : max_n(max_n),
@@ -382,41 +390,121 @@ class RandomOneRoundStrategy : public OneRoundStrategy {
 
 // credit: Pufan He
 // 1 round, O(logN^(1.58)) exams
-class RecursiveOneRoundStrategy : public OneRoundStrategy {
+class RecursiveOneRoundStrategy final : public OneRoundStrategy {
  public:
   RecursiveOneRoundStrategy() {}
 
   string name() const override { return "RecursiveOneRoundStrategy"; }
   bool support(int n) const override { return n >= 0; }
 
+  vector<int> run(int n, const vector<bool>& response) const override {
+    if (n < 7) return naive_strategy.run(n, response);
+    int nx, ny, nz;
+    vector<int> map_z;
+    prepare_dimensions(n, &nx, &ny, &nz, &map_z);
+    vector<bool> rx{response.begin(), response.begin() + worst_exams(nx)};
+    vector<bool> ry{response.begin() + worst_exams(nx),
+                    response.end() - worst_exams(nz)};
+    auto cx = run(nx, rx);
+    auto cy = run(ny, ry);
+
+    if (cx.empty() || cy.empty()) return {};
+    if (cx.size() == 1) {
+      vector<int> answer;
+      for (int y : cy) answer.push_back(y * nx + cx[0]);
+      return answer;
+    }
+    if (cy.size() == 1) {
+      vector<int> answer;
+      for (int x : cx) answer.push_back(cy[0] * nx + x);
+      return answer;
+    }
+    vector<bool> rz{response.end() - worst_exams(nz), response.end()};
+    auto cz = run(nz, rz);
+    for (int pz = 0; pz < nz; ++pz) {
+      int z = map_z[pz];
+      for (int i = 0; i < 2; ++i)
+        for (int j = 0; j < 2; ++j)
+          if ((cx[i] + cy[j]) % nx == z) {
+            if (find(cz.begin(), cz.end(), pz) == cz.end()) {
+              int a = cy[!j] * nx + cx[i];
+              int b = cy[j] * nx + cx[!i];
+              return {min(a, b), max(a, b)};
+            } else {
+              int a = cy[j] * nx + cx[i];
+              int b = cy[!j] * nx + cx[!i];
+              return {min(a, b), max(a, b)};
+            }
+          }
+    }
+    return {};  // impossible
+  }
+
  private:
   vector<Set> make_query(int n) const override {
     if (n < 7) return naive_strategy.get_query(n);
-    int m = sqrt(n);
-    while (m * m < n) ++m;
+    int nx, ny, nz;
+    vector<int> map_z;
+    prepare_dimensions(n, &nx, &ny, &nz, &map_z);
     vector<Set> q;
-    for (const auto& p : get_query(m)) {
-      Set sx = 0, sy = 0;
-      for (int j = 0; j < m; ++j)
-        if (p[j])
-          for (int i = 0; i < m; ++i) {
-            if (i * m + j < n) sx[i * m + j] = true;
-            if (j * m + i < n) sy[j * m + i] = true;
+    for (const auto& p : get_query(nx)) {
+      Set s = 0;
+      for (int x = 0; x < nx; ++x)
+        if (p[x])
+          for (int y = 0; y < ny; ++y) {
+            if (y * nx + x < n) s[y * nx + x] = true;
           }
-      q.emplace_back(move(sx));
-      q.emplace_back(move(sy));
+      q.emplace_back(move(s));
     }
-    for (const auto& p : get_query(m - 2)) {
-      Set sz = 0;
-      for (int j = 0; j < m - 2; ++j)
-        if (p[j])
-          for (int i = 0; i < m; ++i) {
-            int y = (j + m - i) % m;
-            if (i * m + y < n) sz[i * m + y] = true;
+    for (const auto& p : get_query(ny)) {
+      Set s = 0;
+      for (int y = 0; y < ny; ++y)
+        if (p[y])
+          for (int x = 0; x < nx; ++x) {
+            if (y * nx + x < n) s[y * nx + x] = true;
           }
-      q.emplace_back(move(sz));
+      q.emplace_back(move(s));
+    }
+    for (const auto& p : get_query(nz)) {
+      Set s = 0;
+      int z = 0;
+      for (int pz = 0; pz < nz; ++pz) {
+        int z = map_z[pz];
+        if (p[pz])
+          for (int x = 0; x < nx; ++x) {
+            int y = (z + nx - x) % nx;
+            if (y * nx + x < n) s[y * nx + x] = true;
+          }
+        ++z;
+      }
+      q.emplace_back(move(s));
     }
     return q;
+  }
+
+  void prepare_dimensions(int n, int* nx, int* ny, int* nz,
+                          vector<int>* map_z) const {
+    *nx = sqrt(n);
+    while (*nx * *nx < n) ++*nx;
+    *ny = *nx;
+    *nz = *nx;
+    if ((*nx - 1) * *nx >= n) --*ny;
+    int dz = 0;
+    Set sz = 1;
+    --*nz;
+    for (int i = 0; i < *nx; ++i) {
+      dz += 1 << i;
+      if (dz + (1 << (i + 1)) > *nx) break;
+      sz[dz] = true;
+      --*nz;
+    }
+    int z = 0;
+    map_z->clear();
+    for (int pz = 0; pz < *nz; ++pz) {
+      while (sz[z]) ++z;
+      map_z->push_back(z);
+      ++z;
+    }
   }
 
  private:
@@ -618,14 +706,14 @@ class BetterInteractiveStrategy : public Strategy {
         break;
       }
       if (k < xr - l) {
-        auto c = teller->ask({range(l, l + k)})[0];
-        if (c)
+        auto c = teller->ask({range(l, l + k)});
+        if (c[0])
           xr = l + k;
         else
           yl = l += k;
       } else {
-        auto c = teller->ask({range(l + k, r)})[0];
-        if (c) {
+        auto c = teller->ask({range(l + k, r)});
+        if (c[0]) {
           yl = l + k;
           y_must_exist = true;
           break;
@@ -736,7 +824,7 @@ void state_of_the_art() {
   assert(brute_force_verify(n, TwoRoundStrategy()));
 
   // Best known one-round strategy for 1000.
-  assert(disjoint_verify(n, RecursiveOneRoundStrategy()));
+  assert(brute_force_verify(n, RecursiveOneRoundStrategy()));
 
   // Past record holders and interesting experiments.
   if (0) {

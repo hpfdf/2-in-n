@@ -24,5 +24,6 @@ Exams = 26   < 3*log_2(N)
 ### 1-Round
 ```
 N = 1000
-Exams = 48   O(log(N)) or log_2(N)^log_2(3)
+Exams = 47   log_2(N)^log_2(3)
+             or O(log(N)) random strategy
 ```
