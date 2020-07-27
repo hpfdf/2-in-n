@@ -25,5 +25,5 @@ Exams = 26   < 3*log_2(N)
 ```
 N = 1000
 Exams = 47   log_2(N)^log_2(3)
-             or O(log(N)) random strategy
+Exams = 40.  4*log_2(N) using BCH code, unimplemented yet.
 ```
